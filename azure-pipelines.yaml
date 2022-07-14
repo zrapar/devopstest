@@ -1,0 +1,43 @@
+trigger:
+  branches:
+    include:
+    - master
+    - dev
+
+pool:
+  vmImage: ubuntu-latest
+steps:
+  - task: Bash@3
+    displayName: Generate .env
+    inputs:
+      targetType: 'inline'
+      script: |
+        echo "PORT=$(PORT)" >> .env
+  - task: Docker@2
+    displayName: Building Docker Image
+    inputs:
+      command: 'build'
+      Dockerfile: '**/Dockerfile'
+      tags: '$(Build.SourceBranchName)-$(Build.BuildId)'
+      repository: $(DOCKER_REPOSITORY_NAME)
+      addPipelineData: false
+      addBaseImageData: false
+  - task: ECRPushImage@1
+    displayName: Pushing Docker Image to ECR
+    inputs:
+      awsCredentials: 'AWS ECR Pusher'
+      regionName: 'sa-east-1'
+      imageSource: 'imagename'
+      sourceImageName: '$(DOCKER_REPOSITORY_NAME)'
+      sourceImageTag: '$(Build.SourceBranchName)-$(Build.BuildId)'
+      repositoryName: '$(DOCKER_REPOSITORY_NAME)'
+      pushTag: '$(Build.SourceBranchName)-$(Build.BuildId)'
+      autoCreateRepository: true
+  - task: Bash@3
+    inputs:
+      targetType: 'inline'
+      script: 'sed -i -e "s#__AWS_AK__#$(AWS_AK)#g" update/update_docker.sh && sed -i -e "s#__AWS_SK__#$(AWS_SK)#g" update/update_docker.sh && sed -i -e "s#__DOCKER_REPOSITORY_NAME__#$(DOCKER_REPOSITORY_NAME)#g" update/update_docker.sh && sed -i -e "s#__BRANCH_NAME__#$(Build.SourceBranchName)#g" update/update_docker.sh && sed -i -e "s#__TAG__#$(Build.BuildId)#g" update/update_docker.sh && sed -i -e "s#__PORT__#$(PORT)#g" update/update_docker.sh && sed -i -e "s#__PRIVATE_IP_1__#$(PRIVATE_IP_1)#g" update/update_docker.sh && sed -i -e "s#__PRIVATE_IP_2__#$(PRIVATE_IP_2)#g" update/update_docker.sh && sed -i -e "s#__TARGET_GROUP_ARN__#$(TARGET_GROUP_ARN)#g" update/update_docker.sh && sed -i -e "s#__INSTANCE_ID_1A__#$(INSTANCE_ID_1A)#g" update/update_docker.sh && sed -i -e "s#__INSTANCE_ID_2C__#$(INSTANCE_ID_2C)#g" update/update_docker.sh'
+  - task: Bash@3
+    displayName: Execute Bash (Update)
+    inputs:
+      filePath: 'update/update_docker.sh'

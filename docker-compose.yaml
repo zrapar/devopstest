@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  chicks_gold_api:
+    container_name: chicks_gold_api
+    image: "chicks_gold_api:${ENV}"
+    ports:
+      - "${PORT}:${PORT}"
+    build: 
+      context: .
+      args:
+        - "PORTAPP=${PORT}"
